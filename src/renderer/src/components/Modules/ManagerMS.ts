@@ -298,6 +298,13 @@ export class ManagerMS {
     }
   }
 
+  // Маппинг значения art: → ID платформы компилятора.
+  // Обе ревизии используют одну платформу blg-mb-1-a12.
+  static readonly blgMbVersionToPlatform: Readonly<Record<string, string>> = {
+    'blg-mb-1-a12': 'blg-mb-1-a12',
+    'blg-mb-1-b2':  'blg-mb-1-a12',
+  };
+
   static getDevicePlatform = (device: Device) => {
     // TODO: подумать, можно ли найти более надёжный способ сверки платформ на клиенте и сервере
     // названия платформ на загрузчике можно посмотреть здесь: https://github.com/kruzhok-team/lapki-flasher/blob/main/src/device_list.JSON
@@ -308,8 +315,10 @@ export class ManagerMS {
         return 'ArduinoMicro';
       case 'arduino uno':
         return 'ArduinoUno';
-      case 'кибермишка':
-        return (device as BlgMbDevice).version;
+      case 'кибермишка': {
+        const version = (device as BlgMbDevice).version;
+        return ManagerMS.blgMbVersionToPlatform[version] ?? version;
+      }
     }
     return undefined;
   };

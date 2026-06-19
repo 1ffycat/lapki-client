@@ -6,8 +6,10 @@ import { ReactComponent as ConnectionStatus } from '@renderer/assets/icons/circl
 import { ReactComponent as OkIcon } from '@renderer/assets/icons/mark-check.svg';
 import { ReactComponent as NotOkIcon } from '@renderer/assets/icons/mark-cross.svg';
 import { Compiler } from '@renderer/components/Modules/Compiler';
+import { BlgMbDevice } from '@renderer/components/Modules/Device';
 import { useErrorModal, useFileOperations, useModal, useSettings } from '@renderer/hooks';
 import { useModelContext } from '@renderer/store/ModelContext';
+import { useFlasher } from '@renderer/store/useFlasher';
 import { useTabs } from '@renderer/store/useTabs';
 import { CompileCommandResult, CompilerResult } from '@renderer/types/CompilerTypes';
 import { Elements, StateMachine } from '@renderer/types/diagram';
@@ -33,6 +35,7 @@ export const CompilerTab: React.FC<CompilerProps> = ({
   setCompilerStatus,
 }) => {
   const modelController = useModelContext();
+  const { devices } = useFlasher();
   const { openLoadError, openSaveError, openImportError } = useErrorModal();
   const { initImportData } = useFileOperations({
     openLoadError,
@@ -91,8 +94,20 @@ export const CompilerTab: React.FC<CompilerProps> = ({
         selectedElements.stateMachines[smId] = stateMachines[smId];
       }
     }
+
+    // Находим первую подключённую плату и берём её версию (art:).
+    // Версия используется компилятором для добавления #define ревизии платы.
+    const blgMbRevision = (() => {
+      for (const device of devices.values()) {
+        if (device.isBlgMbDevice()) {
+          return (device as BlgMbDevice).version;
+        }
+      }
+      return undefined;
+    })();
+
     Compiler.filename = name;
-    modelController.files.compile(selectedElements);
+    modelController.files.compile(selectedElements, blgMbRevision);
   };
 
   const handleSaveSourceIntoFolder = async () => {
