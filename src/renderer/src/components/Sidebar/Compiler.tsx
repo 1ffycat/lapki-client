@@ -95,19 +95,19 @@ export const CompilerTab: React.FC<CompilerProps> = ({
       }
     }
 
-    // Находим первую подключённую плату и берём её версию (art:).
-    // Версия используется компилятором для добавления #define ревизии платы.
-    const blgMbRevision = (() => {
+    // Находим первую подключённую плату и передаём её данные компилятору.
+    // Компилятор использует art: для добавления #define ревизии платы.
+    const boardRefs = (() => {
       for (const device of devices.values()) {
         if (device.isBlgMbDevice()) {
-          return (device as BlgMbDevice).version;
+          return { art: (device as BlgMbDevice).version };
         }
       }
       return undefined;
     })();
 
     Compiler.filename = name;
-    modelController.files.compile(selectedElements, blgMbRevision);
+    modelController.files.compile(selectedElements, boardRefs);
   };
 
   const handleSaveSourceIntoFolder = async () => {

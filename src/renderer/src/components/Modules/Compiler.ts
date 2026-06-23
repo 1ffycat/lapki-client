@@ -91,7 +91,7 @@ export class Compiler extends ClientWS {
     mode: 'BearlogaImport' | 'BearlogaExport' | 'CGML',
     subPlatform?: string | null,
     bearlogaSmId?: string,
-    boardRevision?: string
+    boardRefs?: Record<string, string>
   ) {
     this.setCompilerData(undefined);
     await this.connect(this.host, this.port).then((ws: Websocket | undefined) => {
@@ -115,7 +115,7 @@ export class Compiler extends ClientWS {
             ws.send('cgml');
             this.mode = 'compile';
             ws.send(exportCGML(data as Elements));
-            ws.send(boardRevision ?? '');
+            ws.send(JSON.stringify(boardRefs ?? {}));
             break;
         }
 
