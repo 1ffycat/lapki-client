@@ -1,3 +1,4 @@
+import blgMbHardwareRefs from './blg-mb-hardware-refs.json';
 import { Binary } from '@renderer/types/CompilerTypes';
 import {
   AddressData,
@@ -298,13 +299,6 @@ export class ManagerMS {
     }
   }
 
-  // Маппинг значения art: → ID платформы компилятора.
-  // Обе ревизии используют одну платформу blg-mb-1-a12.
-  static readonly blgMbVersionToPlatform: Readonly<Record<string, string>> = {
-    'blg-mb-1-a12': 'blg-mb-1-a12',
-    'blg-mb-1-b2':  'blg-mb-1-a12',
-  };
-
   static getDevicePlatform = (device: Device) => {
     // TODO: подумать, можно ли найти более надёжный способ сверки платформ на клиенте и сервере
     // названия платформ на загрузчике можно посмотреть здесь: https://github.com/kruzhok-team/lapki-flasher/blob/main/src/device_list.JSON
@@ -316,8 +310,8 @@ export class ManagerMS {
       case 'arduino uno':
         return 'ArduinoUno';
       case 'кибермишка': {
-        const version = (device as BlgMbDevice).version;
-        return ManagerMS.blgMbVersionToPlatform[version] ?? version;
+        const hardwareRef = (device as BlgMbDevice).version;
+        return (blgMbHardwareRefs as Record<string, string>)[hardwareRef];
       }
     }
     return undefined;

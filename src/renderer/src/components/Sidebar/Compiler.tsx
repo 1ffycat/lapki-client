@@ -96,11 +96,11 @@ export const CompilerTab: React.FC<CompilerProps> = ({
     }
 
     // Находим первую подключённую плату и передаём её данные компилятору.
-    // Компилятор использует art: для добавления #define ревизии платы.
+    // Компилятор использует hardware_ref для добавления #define ревизии платы.
     const boardRefs = (() => {
       for (const device of devices.values()) {
         if (device.isBlgMbDevice()) {
-          return { art: (device as BlgMbDevice).version };
+          return { hardware_ref: (device as BlgMbDevice).version };
         }
       }
       return undefined;
