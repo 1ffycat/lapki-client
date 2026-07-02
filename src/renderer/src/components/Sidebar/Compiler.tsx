@@ -95,19 +95,27 @@ export const CompilerTab: React.FC<CompilerProps> = ({
       }
     }
 
-    // Находим первую подключённую плату и передаём её данные компилятору.
-    // Компилятор использует hardware_ref для добавления #define ревизии платы.
-    const boardRefs = (() => {
-      for (const device of devices.values()) {
-        if (device.isBlgMbDevice()) {
-          return { hardware_ref: (device as BlgMbDevice).version };
-        }
+    // Собираем все различные аппаратные ревизии среди подключённых плат КиберМишки:
+    // если разом подключены платы разных ревизий (например a12 и b2), компилировать
+    // нужно под каждую из них по отдельности, иначе прошивка одной из плат окажется
+    // собранной с #define ревизии другой платы.
+    const hardwareRefs = new Set<string>();
+    for (const device of devices.values()) {
+      if (device.isBlgMbDevice()) {
+        hardwareRefs.add((device as BlgMbDevice).version);
       }
-      return undefined;
-    })();
+    }
 
     Compiler.filename = name;
-    modelController.files.compile(selectedElements, boardRefs);
+    Compiler.resetRevisionBinaries();
+    if (hardwareRefs.size === 0) {
+      modelController.files.compile(selectedElements, undefined);
+      return;
+    }
+    for (const hardwareRef of hardwareRefs) {
+      // eslint-disable-next-line no-await-in-loop
+      await Compiler.compileForHardwareRef(selectedElements, hardwareRef);
+    }
   };
 
   const handleSaveSourceIntoFolder = async () => {

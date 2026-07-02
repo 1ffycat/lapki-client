@@ -45,8 +45,21 @@ export class Compiler extends ClientWS {
 
   static binary: { [id: string]: Binary[] } = {}; // id машины состояний - бинарники
   static source: { [id: string]: SourceFile[] } = {}; // id машины состояний - файлы
-  // платформа на которой произвелась последняя компиляция;
-  static platform: string | undefined = undefined;
+
+  // бинарники, скомпилированные для конкретной аппаратной ревизии платы (hardware_ref).
+  // '' используется как ключ для компиляций, не привязанных к конкретной ревизии.
+  // нужно, чтобы при одновременном подключении нескольких плат КиберМишки разных ревизий
+  // прошивка каждой платы бралась из бинарника, скомпилированного именно под её ревизию.
+  static binariesByRevision: { [id: string]: { [hardwareRef: string]: Binary[] } } = {};
+  // hardware_ref, с которым отправлен текущий запрос на компиляцию
+  private static currentHardwareRef: string = '';
+  // резолвер, вызываемый по завершению текущей компиляции (используется при последовательной
+  // компиляции одной и той же схемы под несколько ревизий платы)
+  private static onCompileDone: (() => void) | undefined;
+
+  static resetRevisionBinaries() {
+    this.binariesByRevision = {};
+  }
 
   static decodeBinaries(binaries: Array<any>) {
     const decodedBinaries: Binary[] = [];
@@ -114,6 +127,7 @@ export class Compiler extends ClientWS {
           case 'CGML':
             ws.send('cgml');
             this.mode = 'compile';
+            this.currentHardwareRef = boardRefs?.hardware_ref ?? '';
             ws.send(exportCGML(data as Elements));
             ws.send(JSON.stringify(boardRefs ?? {}));
             break;
@@ -131,6 +145,24 @@ export class Compiler extends ClientWS {
       } else {
         console.error('Внутренняя ошибка! Отсутствует подключение');
       }
+    });
+  }
+
+  /**
+   * Компилирует схему под конкретную аппаратную ревизию платы и дожидается результата.
+   * Используется для последовательной компиляции одной схемы под несколько ревизий КиберМишки,
+   * подключённых одновременно, т.к. один запрос на компиляцию несёт только один hardware_ref.
+   */
+  static async compileForHardwareRef(data: Elements, hardwareRef: string): Promise<void> {
+    return new Promise((resolve) => {
+      this.onCompileDone = resolve;
+      this.compile(
+        data,
+        'CGML',
+        undefined,
+        undefined,
+        hardwareRef ? { hardware_ref: hardwareRef } : undefined
+      );
     });
   }
 
@@ -157,8 +189,17 @@ export class Compiler extends ClientWS {
           this.binary[stateMachineId] = decodedBinaries;
           this.source[stateMachineId] = sm.source;
           compilerResult.state_machines[stateMachineId].binary = decodedBinaries;
+          if (!this.binariesByRevision[stateMachineId]) {
+            this.binariesByRevision[stateMachineId] = {};
+          }
+          this.binariesByRevision[stateMachineId][this.currentHardwareRef] = decodedBinaries;
         }
         this.setCompilerData(compilerResult);
+        if (this.onCompileDone) {
+          const resolve = this.onCompileDone;
+          this.onCompileDone = undefined;
+          resolve();
+        }
         break;
       case 'import':
         compilerElements = JSON.parse(msg.data as string);
