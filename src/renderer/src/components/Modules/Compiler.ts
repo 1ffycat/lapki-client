@@ -53,9 +53,13 @@ export class Compiler extends ClientWS {
   static binariesByRevision: { [id: string]: { [hardwareRef: string]: Binary[] } } = {};
   // hardware_ref, с которым отправлен текущий запрос на компиляцию
   private static currentHardwareRef: string = '';
-  // резолвер, вызываемый по завершению текущей компиляции (используется при последовательной
-  // компиляции одной и той же схемы под несколько ревизий платы)
-  private static onCompileDone: (() => void) | undefined;
+  // резолвер/реджектер, вызываемые по завершению текущей компиляции (используется при
+  // последовательной компиляции одной и той же схемы под несколько ревизий платы).
+  // reject вызывается при таймауте, чтобы не оставлять compileForHardwareRef подвешенным
+  // навсегда и не допустить перекрытия с последующим вызовом компиляции.
+  private static onCompileDone:
+    | { resolve: () => void; reject: (reason: Error) => void }
+    | undefined;
 
   static resetRevisionBinaries() {
     this.binariesByRevision = {};
@@ -141,6 +145,14 @@ export class Compiler extends ClientWS {
           if (this.connection && this.connection.OPEN) {
             this.onStatusChange(CompilerStatus.CONNECTED);
           }
+          // если ждали результат конкретной компиляции (compileForHardwareRef) - сообщаем
+          // о неудаче явным reject, иначе промис завис бы навсегда, а следующий вызов
+          // компиляции перезаписал бы onCompileDone поверх ещё не выполненного
+          if (this.onCompileDone) {
+            const reject = this.onCompileDone.reject;
+            this.onCompileDone = undefined;
+            reject(new Error(CompilerNoDataStatus.TIMEOUT));
+          }
         });
       } else {
         console.error('Внутренняя ошибка! Отсутствует подключение');
@@ -154,8 +166,8 @@ export class Compiler extends ClientWS {
    * подключённых одновременно, т.к. один запрос на компиляцию несёт только один hardware_ref.
    */
   static async compileForHardwareRef(data: Elements, hardwareRef: string): Promise<void> {
-    return new Promise((resolve) => {
-      this.onCompileDone = resolve;
+    return new Promise((resolve, reject) => {
+      this.onCompileDone = { resolve, reject };
       this.compile(
         data,
         'CGML',
@@ -196,7 +208,7 @@ export class Compiler extends ClientWS {
         }
         this.setCompilerData(compilerResult);
         if (this.onCompileDone) {
-          const resolve = this.onCompileDone;
+          const { resolve } = this.onCompileDone;
           this.onCompileDone = undefined;
           resolve();
         }

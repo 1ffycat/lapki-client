@@ -113,8 +113,15 @@ export const CompilerTab: React.FC<CompilerProps> = ({
       return;
     }
     for (const hardwareRef of hardwareRefs) {
-      // eslint-disable-next-line no-await-in-loop
-      await Compiler.compileForHardwareRef(selectedElements, hardwareRef);
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await Compiler.compileForHardwareRef(selectedElements, hardwareRef);
+      } catch {
+        // таймаут (или другая причина обрыва) уже показан пользователю в виде toast
+        // в Compiler.compile; прерываем компиляцию под оставшиеся ревизии, чтобы не
+        // прошить платы бинарниками, собранными для другой ревизии
+        break;
+      }
     }
   };
 
